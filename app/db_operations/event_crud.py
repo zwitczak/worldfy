@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import create_engine
+from .db_set import SQLiteDatabase
 from sqlalchemy.orm import Session, joinedload
 from ..models.event import EventPost, EventGet, EventType
 from ..models.user import UserBase
@@ -7,30 +7,6 @@ from ..models.localization import AddressBase, Place
 from ..db_model.db_models import EventDB, PlaceDB, AddressDB, PhotoEventBridgeDB, PhotoDB, EventTypeBridgeDB, EventTypeDB, OrganizerDB
 from enum import Enum
 
-
-
-pth ="//home//worldfy//app//db_sqlite//test.db"
-class PhotoType(Enum):
-    main = 1
-    backgroud = 2
-    additional = 3
-
-class DataBase:
-    def __init__(self, conn_str):
-        self._conn_str = conn_str
-
-class SQLite(DataBase):
-    def __init__(self, echo):
-        super().__init__(f"sqlite:///{pth}")
-        self.engine = create_engine(url=self._conn_str,
-                                    future=True,
-                                    echo=echo,
-                                    connect_args={"check_same_thread": False})
-        
-    def create_session(self):
-        return Session(self.engine)
-
-SQLiteDatabase = SQLite(echo=True)
 
 class EventCRUD:
     def __init__(self, session: Session) -> None:
