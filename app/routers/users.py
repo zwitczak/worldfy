@@ -7,12 +7,14 @@ router = APIRouter(prefix="/user")
 
 
 @router.get("/")
-async def get_users(event_id: int):
+async def get_users_by_name(name: str):
     """
-    Return basic intormations about event based on event_id.
+    Return basic list of users - contains only user name surname or 
     """
+    # users = UserManager(getUsersByName(name)).execute_operation()
+
     raise HTTPException(status_code=501, detail='TO be done')
-    pass
+    
 
 
 @router.get("/{user_id}/events")

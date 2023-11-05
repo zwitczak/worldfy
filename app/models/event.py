@@ -29,6 +29,26 @@ class EventPost(BaseModel):
     
 class EventGet(EventPost):
     id: int
+    description: Optional[str]
+
+
+class EventBase(BaseModel):
+    name: str
+    date_start: datetime
+    date_end: datetime
+    is_public: bool
+    description: str
+    is_outdoor: bool
+    participants_limit: str
+    age_limit: str
+
+class EventEditModel(BaseModel):
+    base_info: Optional[EventBase] = None
+    organizers: Optional[List[UserBase]] = None
+    photos: Optional[List[Photo]] = None
+    place: Optional[Place] = None
+    address: Optional[AddressBase] = None
+    types: Optional[List[EventType]] = None
 
 
 

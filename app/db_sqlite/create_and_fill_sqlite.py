@@ -4,9 +4,10 @@ from sqlalchemy import ForeignKey, Integer, String, Float, Boolean, DateTime, Te
 from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base
 from sqlalchemy.orm import DeclarativeBase, Session
 from sqlalchemy.ext.associationproxy import association_proxy
-import os
-os
+import os     
+
 pth = "//home//worldfy//app//db_sqlite//test.db"
+
 if os.path.exists(pth):
     os.rmdir(pth)
 # A mapped class typically refers to a single particular database table, 

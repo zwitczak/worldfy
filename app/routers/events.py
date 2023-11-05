@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Path, Query, HTTPException
-from app.logic.event_manager import EventManager, addEvent, getBaseEvent, getEventTypes
-from ..models.event import EventPost, EventGet
+from app.logic.event_manager import EventManager, addEvent, getBaseEvent, getEventTypes, editEventLocalization, editBaseEvent
+from ..models.event import EventPost, EventGet, EventEditModel
 
 router = APIRouter(prefix="/event")
 
@@ -47,7 +47,25 @@ async def get_event_types():
     
     return context
 
+@router.put('/event/{event_id}/edit')
+async def modify_event_data(event_id: int, event_edit: EventEditModel):
+    """ Edit event data """
+    if event_edit.base_info is not None:
+        context = EventManager(editBaseEvent(event_id=event_id, event_base=event_edit.base_info)).execute_operation()
 
+    if event_edit.place is not None:
+        context = EventManager(editEventLocalization(event_id=event_id,event_place=event_edit.place, event_address=event_edit.address)).execute_operation()
+       
+        
+    if event_edit.photos is not None:
+        pass
+    if event_edit.organizers is not None:
+        pass
+    # if event_edit.media is not None:
+    #     pass
+
+    print(context)
+    return context
 
 
 
