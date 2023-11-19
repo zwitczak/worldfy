@@ -2,6 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, List
 from ..models.event import EventPost, EventGet
+from ..models.media import Media
 from ..db_operations.event_crud import EventCRUD, SQLiteDatabase
 from .geocoding import Geocoder
 
@@ -49,17 +50,13 @@ class getBaseEvent(Strategy):
 
     def execute(self):
         base_event = EventCRUD(SQLiteDatabase.create_session()).get_base_event(self._event_id)
+        print(base_event)
         # print(base_event)
         return base_event
         
 
-
 class deleteEvent(Strategy):
     def execute(self, event_id: int):
-        pass
-
-class editBaseEvent(Strategy):
-    def execute(self, event):
         pass
 
 class getEventTypes(Strategy):
@@ -97,19 +94,94 @@ class editEventLocalization(Strategy):
             return update_status
 
 
-class editEventPhotos(Strategy):
-    def execute(self, event):
-        pass
+class addEventPhoto(Strategy):
+    def __init__(self,  event_id: int, photo:Photo):
+        self._event_id= event_id
+        self._photo = photo
 
-class editEventOrganizer(Strategy):
-    def execute(self, event):
-        pass
+    def execute(self):
+        with SQLiteDatabase.create_session() as session:
+            operation_status = EventCRUD(session).add_photo(self._event_id, self._photo)
+            return operation_status
 
-class editEventType(Strategy):
-    def execute(self, event):
-        pass
+class deleteEventPhoto(Strategy):
+    def __init__(self, event_id: int, photo_id):
+        self._event_id= event_id
+        self._photo_id = photo_id
 
-class editEventMedia(Strategy):
-    def execute(self, event):
-        pass
+    def execute(self):
+        with SQLiteDatabase.create_session() as session:
+            operation_status = EventCRUD(session).delete_photo(event_id=self._event_id, photo_id =self._photo_id)
+            return operation_status
 
+class modifyEventPhoto(Strategy):
+    def __init__(self, photo:Photo):
+        self._photo = photo
+
+    def execute(self):
+        with SQLiteDatabase.create_session() as session:
+            operation_status = EventCRUD(session).modify_photo(self._photo)
+            return operation_status
+
+class addEventOrganizer(Strategy):
+    def __init__(self, event_id, user_id):
+        self._event_id = event_id
+        self._user_id = user_id
+
+    def execute(self):
+        with SQLiteDatabase.create_session() as session:
+            operation_status = EventCRUD(session).add_organizer(self._event_id ,self._user_id)
+            return operation_status
+
+class deleteEventOrganizer(Strategy):
+    def __init__(self, event_id, user_id):
+        self._event_id = event_id
+        self._user_id = user_id
+
+    def execute(self):
+         with SQLiteDatabase.create_session() as session:
+            operation_status = EventCRUD(session).delete_organizer(self._event_id, self._user_id)
+            return operation_status
+
+
+class addEventType(Strategy):
+    def __init__(self, event_id, event_type_ids:List[int]):
+        self._event_id = event_id
+        self._type_ids = event_type_ids
+
+    def execute(self):
+         with SQLiteDatabase.create_session() as session:
+            operation_status = EventCRUD(session).add_event_type(event_id= self._event_id, event_type_ids=self._type_ids)
+            return operation_status
+
+class deleteEventType(Strategy):
+    def __init__(self, event_id, event_type_id):
+        self._event_id = event_id
+        self._event_type_id = event_type_id
+
+    def execute(self):
+         with SQLiteDatabase.create_session() as session:
+            operation_status = EventCRUD(session).delete_event_type(event_id=self._event_id, type_id=self._event_type_id)
+            return operation_status
+
+class addEventMedia(Strategy):
+    def __init__(self, event_id, media: Media):
+        self._event_id = event_id
+        self._media = media
+
+    def execute(self):
+         with SQLiteDatabase.create_session() as session:
+            operation_status = EventCRUD(session).add_event_media(event_id= self._event_id, media=self._media)
+            return operation_status              
+
+# delete_event_media
+
+class deleteEventMedia(Strategy):
+    def __init__(self, event_id: int, media_id: int):
+        self._event_id = event_id
+        self._media_id = media_id
+
+    def execute(self):
+         with SQLiteDatabase.create_session() as session:
+            operation_status = EventCRUD(session).delete_event_media(event_id= self._event_id, media_id=self._media_id)
+            return operation_status     

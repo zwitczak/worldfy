@@ -38,5 +38,34 @@ class getEventsByUser(Strategy):
         events = UserCRUD(SQLiteDatabase.create_session()).get_users_organized_events(self._user_id)
         return events
     
+class getUsersByName(Strategy):
+    def __init__(self, name: str, organizations: bool, pv_users: bool) -> None:
+        super().__init__()
+        self._name= name
+        self._organizations = organizations
+        self._pv_users = pv_users
+
+    def execute(self):
+        try:
+            if self._organizations:
+                print('Get organizations...')
+                organizations_result = UserCRUD(SQLiteDatabase.create_session()).get_organizations_by_name(self._name)
+                if organizations_result.get('status', None) == 'failed':
+                    raise Exception(f"Operation failed due to exception:{organizations_result.get('details', 'exception')}")
+
+            if self._pv_users:
+                print('Get private users...')
+
+                pv_users_result = UserCRUD(SQLiteDatabase.create_session()).get_pv_users_by_name(self._name)
+                print(pv_users_result)
+                if pv_users_result.get('status', None) == 'failed':
+                    raise Exception(f"Operation failed due to exception:{pv_users_result.get('details', 'exception')}")
+
+            result = {"organizations": organizations_result.get('organizations', None), "private users": pv_users_result.get('users', None)}
+        except Exception as e:
+            raise Exception(f"Operation failed due to exception:{pv_users_result.get('details', 'exception')}, \n{e}")
+
+        return result
+    
 
 

@@ -1,17 +1,38 @@
 import datetime
 from .db_set import SQLiteDatabase
-from sqlalchemy import update
+from sqlalchemy import update, delete
 from sqlalchemy.orm import Session, joinedload
 from ..models.event import EventPost, EventGet, EventType, EventBase
-from ..models.user import UserBase
+from ..models.user import UserBase, Organization, PrivateUser
+from ..models.media import Media, MediaGet
 from ..models.localization import AddressBase, Place
-from ..db_model.db_models import EventDB, PlaceDB, AddressDB, PhotoEventBridgeDB, PhotoDB, EventTypeBridgeDB, EventTypeDB, OrganizerDB
+from ..models.photo import Photo
+from ..db_model.db_models import EventDB, PlaceDB, AddressDB, PhotoEventBridgeDB, PhotoDB, EventTypeBridgeDB, EventTypeDB, OrganizerDB, MediaEventBridgeDB, MediaDB
 from enum import Enum
+from typing import List
 
 
 class EventCRUD:
     def __init__(self, session: Session) -> None:
         self._session = session
+
+
+    def delete_event(self, event_id, event_modify: EventBase):
+        try:
+            self._session.delete(EventDB).where(EventDB.id == event_id)
+            self._session.delete(OrganizerDB).where(OrganizerDB.event_id == event_id)
+            # self._session.delete(ParticipantDB).where(ParticipantDB.event_id == event_id)
+
+            
+            # session.query(stmt)
+            self._session.execute(stmt)
+            self._session.commit()
+            
+            return {"status":"success"}
+            
+        except Exception as e:
+            self._session.rollback()
+            raise 
 
     def insert_event(self, event: EventPost):
         """
@@ -23,6 +44,10 @@ class EventCRUD:
         try:
             # create base event object
             print('Adding new event', event.name)
+            if event.date_start > event.date_end:
+                return {'status': 'failed','code':405, 'details':'date start after date end'}
+
+
             db_event = EventDB(name=event.name,
                             date_start=event.date_start,
                             date_end = event.date_end,
@@ -30,7 +55,8 @@ class EventCRUD:
                             description = event.description,
                             is_outdoor = event.is_outdoor,
                             participants_limit = event.participants_limit,
-                            age_limit = event.age_limit
+                            age_limit = event.age_limit,
+                            accepted=event.accepted
                             )
         
 
@@ -79,9 +105,14 @@ class EventCRUD:
                 photo_event_db.photo = PhotoDB(link =photo.photo_link , description = photo.photo_description, datetime_posted = datetime.datetime.now())
                 db_event.photos.append(photo_event_db)
 
+            db_media = []
+            for med in event.media:
+                db_media.append(MediaDB(link=med.link, type_id=med.type_id))
+
+            db_event.media = db_media 
+
             self._session.add(db_event)
             self._session.flush()
-
 
             #TODO: add icon
             organizers = []
@@ -96,24 +127,48 @@ class EventCRUD:
             self._session.add_all(types)
 
             self._session.commit()
-            return {"result":f"Event {db_event} inserted to database successfully"}
+            return {"status":"succeeded", "details":f"Event {db_event} inserted to database successfully"}
         except Exception as e:
             print(e)
-            return {"exception": str(e)}
+            return {"status": "failed", "code": 500, "details":f"Exception: {str(e)}"}
 
     def get_base_event(self, event_id):
         try:
             db_event = self._session.query(EventDB).where(EventDB.id == event_id).options(joinedload(EventDB.place))\
                                     .options(joinedload(EventDB.photos))\
                                     .options(joinedload(EventDB.organizers))\
-                                    .options(joinedload(EventDB.types)).first()
+                                    .options(joinedload(EventDB.types))\
+                                    .options(joinedload(EventDB.media)).first()
         
             # prepare place object
+            if db_event is None:
+                result = {"status":"failed", "code": 404, "details": f"Event with {event_id} id number does not exist"}
+                return result
+            print('------------------------',[o.email for o in db_event.organizers])
+
+            organizers = []
+            for organizer in db_event.organizers:
+                print(organizer.type)
+                if organizer.type.lower() == 'organization':
+                    org = Organization(id = organizer.id, email=organizer.email, name=organizer.name)
+                    organizers.append(org)
+                   
+                elif organizer.type.lower() == 'private_user':
+                    usr = PrivateUser(id = organizer.id, email=organizer.email, name=organizer.name, surname=organizer.surname, nickname=organizer.surname, visible=organizer.visible)
+                    organizers.append(usr)
+                    
+            
             place_obj = db_event.place.as_dict()
             place_obj.pop("address_id")
-
-
-            result = EventGet(id=db_event.id,
+            photos = [Photo(id=pho.photo_id, 
+                            photo_link=pho.photo_link, 
+                            type=pho.type, 
+                            photo_description=pho.photo_description,
+                            datetime_posted=pho.photo_datetime_posted) for pho in db_event.photos]
+            
+            media = [MediaGet(id = med.id, link=med.link, type_name=med.media_type.name, media_icon=med.media_type.icon) for med in db_event.media]
+            
+            event = EventGet(id=db_event.id,
                             name=db_event.name,
                             date_start=db_event.date_start,
                             date_end=db_event.date_end,
@@ -122,17 +177,22 @@ class EventCRUD:
                             is_outdoor=db_event.is_outdoor,
                             participants_limit=db_event.participants_limit,
                             age_limit=db_event.age_limit,
-                            organizers=[UserBase.model_validate(o.as_dict()) for o in db_event.organizers],
+                            accepted=db_event.accepted,
+                            organizers=organizers,
                             place=Place.model_validate(place_obj),
-                            photos=db_event.photos,
+                            photos=photos,
                             address=AddressBase.model_validate(db_event.place.address.as_dict()),
-                            types=[EventType.model_validate(et.as_dict()) for et in db_event.types]
+                            types=[EventType.model_validate(et.as_dict()) for et in db_event.types],
+                            media= media
                             )
+
+            result = {"status": "succeeded", "object": event}
+            return result
         except Exception as e:
             # handle exceptions
-            result = str(e)
+            result = {"status": "failed", "code": 500, "details": str(e)}
+            return result
 
-        return result
     
     def get_event_types(self):
         try:
@@ -142,12 +202,15 @@ class EventCRUD:
             result = [EventType.model_validate(et.as_dict()) for et in event_types]
             
         except Exception as e:
+
             result = e
 
         return result
 
     def update_event_base(self, event_id, event_modify: EventBase):
         try:
+            if event_modify.date_start > event_modify.date_end:
+                return {"status": "failed", "code": 405, "details": "Date start after date end"}
             stmt = update(EventDB).where(EventDB.id == event_id).values(event_modify.model_dump())
             
             # session.query(stmt)
@@ -162,7 +225,7 @@ class EventCRUD:
 
     def change_event_localization(self, event_id: int, event_place: Place, event_address: AddressBase):
         try:
-            db_event = self._session.query(EventDB).where(EventDB.id == event_id).options(joinedload(EventDB.place)).first()
+            # db_event = self._session.query(EventDB).where(EventDB.id == event_id).options(joinedload(EventDB.place)).first()
             # old_place= db_event.place
 
             if event_address is None:
@@ -258,7 +321,8 @@ class EventCRUD:
                                     )
                             self._session.add(new_address)
                             self._session.flush()
-                            stmt = update(PlaceDB).where(PlaceDB.id == event_place.id).values({'name': event_place.name, 'address_id': new_address.id})
+                            stmt = update(PlaceDB).where(PlaceDB.id == event_place.id)\
+                                                  .values({'name': event_place.name, 'address_id': new_address.id})
                             self._session.execute(stmt)
                             result = {'status': 'modify place params and add new address'}
 
@@ -266,7 +330,201 @@ class EventCRUD:
             self._session.commit()
             return result
         except Exception as e:
-            print(e)   
+            self._session.rollback()
+            print(e)
+            result = {'status':'failed'}
+            return result
+
+    def add_photo(self, event_id: int, photo: Photo):
+        try:
+            if photo.type == 'main':
+                stmt = update(PhotoEventBridgeDB).where(PhotoEventBridgeDB.event_id == event_id).where(PhotoEventBridgeDB.type == 'main').values({"type":"side"})
+                self._session.execute(stmt)
+            
+            photo_db = PhotoDB(
+                description = photo.photo_description,
+                link = photo.photo_link,
+                datetime_posted = datetime.datetime.now()
+            )
+
+            self._session.add(photo_db)
+            self._session.flush()
+
+            photo_event_bridge = PhotoEventBridgeDB(event_id = event_id, photo_id = photo_db.id, type=photo.type)
+            self._session.add(photo_event_bridge)
+            self._session.commit()
+            result = {'status':'succedded'}
+
+        except Exception as e:
+            print('Exception:', e)
+            self._session.rollback()
+            result = {'status':'failed'}
+        return result
+
+
+    def delete_photo(self, event_id: int, photo_id: int):
+        try:
+            stmt = delete(PhotoEventBridgeDB).where(PhotoEventBridgeDB.photo_id == photo_id)
+            self._session.execute(stmt)
+            self._session.commit()
+            result = {'status':'succedded'}
+        except Exception as e:
+            print('Exception:', e)
+            result = {'status':'failed'}
+
+        return result
+
+    def modify_photo(self, photo: Photo):
+        try:
+            stmt = update(PhotoDB).where(PhotoDB.id == photo.id).values({"description":photo.photo_description})
+                
+            self._session.execute(stmt)
+            self._session.commit()
+            result = {'status':'succedded'}
+
+            
+        except Exception as ex:
+            print('Exception:', ex)
+            result = {'status':'failed'}
+
+        return result
+
+    def add_organizer(self, event_id: int, user_id: int):
+        try:
+            organizer = OrganizerDB(user_id=user_id, 
+                                    event_id=event_id)
+            self._session.add(organizer)
+            self._session.commit()
+            result = {'status':'succedded'}
+        except Exception as e:
+            print('Exception:', e)
+            result = {'status':'failed'}
+
+        return result
+
+    def delete_organizer(self, event_id: int, user_id: int):
+        try:
+            organizers = self._session.query(OrganizerDB.user_id).where(OrganizerDB.event_id == event_id).count()
+
+            if int(organizers) == 1:
+                result = {"status":"Operation forbidden", "reason": "One organizer left"}
+                return result
+            stmt = delete(OrganizerDB).where(OrganizerDB.event_id == event_id).where(OrganizerDB.user_id == user_id)
+            self._session.execute(stmt)
+            self._session.commit()
+            result = {'status':f'succedded'}
+        except Exception as e:
+            print('Exception:', e)
+            result = {'status':'failed'}
+
+        return result
+
+
+    def add_event_type(self, event_id: int, event_type_ids: List[int]):
+        try:
+            types = []
+            existing_types = self._session.query(EventTypeBridgeDB.type_id).where(EventTypeBridgeDB.event_id == event_id).all()
+            possible_types = self._session.query(EventTypeDB.id).all()
+            existing_types = [i[0] for i in existing_types]
+            possible_types = [i[0] for i in possible_types]
+            passed = []
+            inserted = []
+
+            for type_id in event_type_ids:
+                if type_id in existing_types:
+                    passed.append(type_id)
+                    continue
+                if type_id in possible_types:
+                    type_event = EventTypeBridgeDB(event_id=event_id, 
+                                            type_id=type_id)
+                    inserted.append(type_id)
+                    types.append(type_event)
+                else:
+                    passed.append(type_id)
+                    # result = {'status':'failed', 'details':'Passed event type id does not exist'}
+            print(types)
+            self._session.add_all(types)
+            self._session.commit()
+            result = {'status':'succedded','types_inserted':inserted, 'types_passed': passed}
+        except Exception as e:
+            print('Exception:', e)
+            result = {'status':'failed', 'details':f'passed: {passed} '}
+
+        return result
+
+    def delete_event_type(self, event_id: int, type_id: int):
+        try:
+
+            existing_types = self._session.query(EventTypeBridgeDB.type_id).where(EventTypeBridgeDB.event_id == event_id).count()
+
+            if int(existing_types) == 1:
+                result = {"status":"Operation forbidden", "reason": "One event type left"}
+                return result
+            stmt = delete(EventTypeBridgeDB).where(EventTypeBridgeDB.event_id == event_id).where(EventTypeBridgeDB.type_id == type_id)
+            self._session.execute(stmt)
+            self._session.commit()
+            result = {'status':f'succedded'}
+        except Exception as e:
+            print('Exception:', e)
+            result = {'status':'failed'}
+
+        return result
+    
+
+
+    def add_event_media(self, event_id: int, media: Media):
+        try:
+            exisiting = self._session.query(MediaDB).where(MediaEventBridgeDB.media_id == MediaDB.id).where(MediaEventBridgeDB.event_id == event_id).where(MediaDB.type_id == media.type_id).all()
+
+            if len(exisiting) == 1:
+                print('Replace current media entrance')
+                print(exisiting[0].id)
+                stmt = update(MediaDB).where(MediaDB.id == exisiting[0].id).values({"link": media.link})
+                self._session.execute(stmt)
+                self._session.commit()
+                result = {'status':'succeeded', 'details':f'Updated: media id[{exisiting[0].id}] with new link'}
+
+            else:
+                print("Add new media entrance")
+                db_media = MediaDB(link=media.link, type_id=media.type_id)
+                self._session.add(db_media)
+                self._session.flush()
+
+                bridge = MediaEventBridgeDB(event_id= event_id, media_id = db_media.id)
+
+                self._session.add(bridge)
+                self._session.commit()
+                result = {'status':'succeeded', 'details':f'Added: {db_media}'}
+
+        except Exception as e:
+            result = {'status':'failed', 'details':f'{e}'}
+
+        return result
+
+    def delete_event_media(self, event_id: int, media_id: int):
+        try:
+
+            existing_media = [int(m.media_id) for m in self._session.query(MediaEventBridgeDB.media_id).where(MediaEventBridgeDB.event_id == event_id).all()]
+
+            if media_id not in existing_media:
+                result = {'status':f'failed', 'status_code': 404, 'details':f'Media {media_id} does not exist'}
+            else:
+                stmt_bridge = delete(MediaEventBridgeDB).where(MediaEventBridgeDB.media_id == media_id).where(MediaEventBridgeDB.event_id == event_id)
+                self._session.execute(stmt_bridge)
+                stmt_media = delete(MediaDB).where(MediaDB.id == media_id)
+                self._session.execute(stmt_media)
+                self._session.commit()
+                result = {'status':f'succedded', 'status_code': 200, 'details':f'Media {media_id} deleted'}
+
+        except Exception as e:
+            print('Exception:', e)
+            result = {'status':'failed'}
+
+        return result
+    
+    
+
+
 
             
             

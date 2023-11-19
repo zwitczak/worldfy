@@ -4,9 +4,11 @@ from datetime import datetime
 from typing import Optional, List, Union
 
 class Photo(BaseModel):
-    photo_link: str
+    id: Optional[int] = None
+    photo_link: Optional[str] =None
     photo_description: Optional[str]
-    type: str
+    type: Optional[str] = None
+    datetime_posted: Optional[datetime] = None
 
 
     class Config:

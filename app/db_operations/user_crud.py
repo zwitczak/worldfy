@@ -3,12 +3,11 @@ from .db_set import SQLiteDatabase
 from ..models.event import EventPost, EventGet, EventType
 from ..models.user import UserBase
 from ..models.localization import AddressBase, Place
-from ..db_model.db_models import EventDB, PlaceDB, AddressDB, PhotoEventBridgeDB,\
-                                 PhotoDB, EventTypeBridgeDB, EventTypeDB, OrganizerDB
+from ..db_model.db_models import EventDB, OrganizerDB, PrivateUserDB, OrganizationDB
 import datetime
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, or_, select
 from sqlalchemy.orm import Session, joinedload
-
+from sqlalchemy.sql.functions import concat
 class UserCRUD:
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -48,3 +47,31 @@ class UserCRUD:
             result = str(e)
 
         return result
+    
+    def get_organizations_by_name(self, name: str):
+        try:
+            name = name.lower()
+            stmt = select(OrganizationDB).filter(OrganizationDB.name.contains(name))
+            organizations = self._session.execute(stmt)
+            result = {"status": "succeeded", "organizations": organizations}
+            print(organizations)
+        except Exception as e:
+            result = {"status": "failed", "details": e}
+        return result
+
+            
+
+    def get_pv_users_by_name(self, name: str):
+        try:
+            name = name.lower()
+            stmt = select(PrivateUserDB).where((PrivateUserDB.name + PrivateUserDB.surname + PrivateUserDB.nickname).contains(name))
+            print(stmt)
+            priv_users = self._session.execute(stmt)
+            result = {"status": "succeeded", "users": priv_users}
+            print(priv_users)
+        except Exception as e:
+            result = {"status": "failed", "details": e}
+        return result
+    
+
+# priv_users = SQLiteDatabase.create_session().query(PrivateUserDB).filter(concat(PrivateUserDB.name, PrivateUserDB, PrivateUserDB.nickname).contains('eve'))

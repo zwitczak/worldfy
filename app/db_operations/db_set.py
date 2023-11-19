@@ -2,7 +2,7 @@ import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, joinedload
 
-pth ="//home//worldfy//app//db_sqlite//test.db"
+pth ="//home//worldfy//app//db_sqlite//test2.db"
 
 class DataBase:
     def __init__(self, conn_str):

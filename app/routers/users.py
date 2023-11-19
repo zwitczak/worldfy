@@ -1,19 +1,22 @@
 from fastapi import APIRouter, Path, Query, HTTPException
 from app.logic.event_manager import EventManager, addEvent, getBaseEvent, getEventTypes
-from app.logic.user_manager import UserManager, getEventsByUser
+from app.logic.user_manager import UserManager, getEventsByUser, getUsersByName
 
 router = APIRouter(prefix="/user")
 
 
 
 @router.get("/")
-async def get_users_by_name(name: str):
+async def get_users_by_name(name: str, organizations: bool, pv_users: bool):
     """
     Return basic list of users - contains only user name surname or 
     """
-    # users = UserManager(getUsersByName(name)).execute_operation()
-
-    raise HTTPException(status_code=501, detail='TO be done')
+    try:
+        users = UserManager(getUsersByName(name, organizations=organizations, pv_users=pv_users)).execute_operation()
+        return users
+    except Exception as e:
+        print(e)
+        raise HTTPException(404)
     
 
 

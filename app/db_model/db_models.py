@@ -1,6 +1,6 @@
 from typing import List, Optional
 import datetime
-from sqlalchemy import ForeignKey, Integer, String, Float, Boolean, DateTime, Text, BIGINT, VARCHAR, create_engine
+from sqlalchemy import ForeignKey, Integer, String, Float, Boolean, DateTime, Text, BIGINT, VARCHAR, create_engine, Date
 from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.associationproxy import association_proxy
@@ -33,6 +33,8 @@ class AddressDB(Base):
 
     # relationships
     places: Mapped[List["PlaceDB"]] = relationship(back_populates="address")
+    organization: Mapped["OrganizationDB"] = relationship(back_populates="address")
+
 
     def as_dict(self):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -78,13 +80,15 @@ class EventDB(Base):
     participants_limit: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     age_limit: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     place_id = mapped_column(ForeignKey("PLACE.id"), nullable=False) 
+    accepted: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
     # relationships
     place: Mapped["PlaceDB"] = relationship(back_populates="events")
     types: Mapped[List["EventTypeDB"]] = relationship("EventTypeDB", secondary="EVENT_TYPE_BR", back_populates="events")
     photos =  relationship("PhotoEventBridgeDB" , back_populates="event")
     organizers: Mapped[List["UserDB"]] = relationship("UserDB", secondary="ORGANIZER", back_populates="organized_events")
-    
+    media = relationship("MediaDB", secondary ="MEDIA_EVENT_BR", back_populates="events_media")
+
     def as_dict(self):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
     
@@ -119,6 +123,29 @@ class PhotoEventBridgeDB(Base):
     def __repr__(self) -> str:
         return f"""PhotoEventBridge(photo_id={self.photo_id!r}, event_id={self.event_id!r}, type={self.type!r})"""
 
+class PhotoUserBridgeDB(Base):
+    __tablename__ = "PHOTO_USER_BR"
+
+    # attributes
+    photo_id: Mapped[int] = mapped_column(ForeignKey("PHOTO.id"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("USER.id"), primary_key=True)
+    type: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # relationships
+    user = relationship("UserDB", back_populates="photos")
+    photo = relationship("PhotoDB", back_populates="user_obj")
+
+    # proxies
+    photo_link = association_proxy(target_collection='photo', attr='link')
+    photo_description = association_proxy(target_collection='photo', attr='description')
+    photo_datetime_posted = association_proxy(target_collection='photo', attr='datetime_posted')
+
+    def as_dict(self):
+       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+    
+    def __repr__(self) -> str:
+        return f"""PhotoUserBridge(photo_id={self.photo_id!r}, event_id={self.event_id!r}, type={self.type!r})"""
+
 
 class PhotoDB(Base):
     __tablename__ = "PHOTO"
@@ -130,6 +157,8 @@ class PhotoDB(Base):
 
     # relationships
     event_obj = relationship("PhotoEventBridgeDB", back_populates="photo")
+    user_obj = relationship("PhotoUserBridgeDB", back_populates="photo")
+    # comment_obj = relationship("PhotoCommentBridgeDB", back_populates="photo")
     
     def as_dict(self):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -145,6 +174,7 @@ class EventTypeDB(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[Optional[str]] = mapped_column(String, nullable=False, unique=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    icon: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # relationships
     events: Mapped[List["EventDB"]] = relationship("EventDB", secondary="EVENT_TYPE_BR", back_populates="types")
@@ -178,16 +208,151 @@ class OrganizerDB(Base):
         return f"""Organizer(user_id={self.user_id!r}, event_id={self.event_id!r})"""
 
 class UserDB(Base):
+    
     __tablename__ = "USER"
+
+    # https://docs.sqlalchemy.org/en/20/orm/inheritance.html
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[Optional[str]] = mapped_column(String, nullable=False)
+    email: Mapped[str] = mapped_column(String, nullable=False)
+    password: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    registration_date: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    type: Mapped[str]
+
 
     # relationships
     organized_events: Mapped[Optional[List["EventDB"]]]= relationship("EventDB", secondary="ORGANIZER",back_populates="organizers")
+    # saved_events: Mapped[Optional[List["EventDB"]]]= relationship("EventDB", secondary="PARTICIPANT",back_populates="participants")
+    photos =  relationship("PhotoUserBridgeDB" , back_populates="user")
+    media = relationship("MediaDB", secondary="MEDIA_USER_BR",back_populates="users_media")
+
+    __mapper_args__ = {
+        "polymorphic_identity": "USER",
+        "polymorphic_on": "type",
+    }
+
     
     def as_dict(self):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
     
     def __repr__(self) -> str:
         return f"""User(id={self.id!r}, name={self.name!r})"""
-# Base.metadata.create_all(engine)
+
+class PrivateUserDB(UserDB):
+    
+    __tablename__ = "PRIVATE_USER"
+
+    id: Mapped[int] = mapped_column(ForeignKey("USER.id"), primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    surname: Mapped[str] = mapped_column(String, nullable=False)
+    nickname: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    gender: Mapped[str] = mapped_column(String, nullable=False)
+    birthday: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    visible: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "PRIVATE_USER"
+    }
+
+    # relationships 
+    # TODO partitipated_events
+
+    def as_dict(self):
+       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+    
+    def __repr__(self) -> str:
+        return f"""User(id={self.id!r}, name={self.name!r})"""
+
+class OrganizationDB(UserDB):
+    
+    __tablename__ = "ORGANIZATION"
+
+    id: Mapped[int] = mapped_column(ForeignKey("USER.id"), primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    phone_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    organization_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    size: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    address_id: Mapped[Optional[int]] = mapped_column(ForeignKey("ADDRESS.id"), nullable=True)
+
+    # relationships
+    address: Mapped[AddressDB] = relationship(back_populates='organization')
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ORGANIZATION"
+    }
+
+
+    def as_dict(self):
+       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+    
+    def __repr__(self) -> str:
+        return f"""User(id={self.id!r}, name={self.name!r})"""
+
+
+
+class MediaUserBridgeDB(Base):
+    __tablename__ = "MEDIA_USER_BR"
+    
+    # attributes
+    user_id: Mapped[int] = mapped_column(ForeignKey("USER.id"), primary_key=True)
+    media_id: Mapped[int] = mapped_column(ForeignKey("MEDIA.id"), primary_key=True)
+
+
+    def as_dict(self):
+       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+    
+    def __repr__(self) -> str:
+        return f"""MediaUserBridge(user_id={self.user_id!r}, media_id={self.media_id!r})"""
+
+class MediaEventBridgeDB(Base):
+    __tablename__ = "MEDIA_EVENT_BR"
+    
+    # attributes
+    event_id: Mapped[int] = mapped_column(ForeignKey("EVENT.id"), primary_key=True)
+    media_id: Mapped[int] = mapped_column(ForeignKey("MEDIA.id"), primary_key=True)
+
+
+    def as_dict(self):
+       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+    
+    def __repr__(self) -> str:
+        return f"""MediaEventBridge(event_id={self.event_id!r}, media_id={self.media_id!r})"""
+
+class MediaDB(Base):
+    __tablename__ = "MEDIA"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    link: Mapped[str] = mapped_column(String, nullable=False)
+    type_id: Mapped[int] = mapped_column(ForeignKey("MEDIA_TYPES.id"), nullable=False)
+
+    # relationships
+    media_type = relationship("MediaTypesDB", back_populates="media_instances")
+    # user
+    users_media = relationship("UserDB", secondary="MEDIA_USER_BR", back_populates="media")
+    # event
+    events_media = relationship("EventDB", secondary="MEDIA_EVENT_BR", back_populates="media")
+
+
+    
+    def as_dict(self):
+       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+    
+    def __repr__(self) -> str:
+        return f"""Media(id={self.id!r}, link={self.link!r}, type_id={self.type_id!r})"""
+
+class MediaTypesDB(Base):
+    __tablename__ = "MEDIA_TYPES"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    icon: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # relationships
+    media_instances = relationship("MediaDB", back_populates="media_type")
+    
+    def as_dict(self):
+       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+    
+    def __repr__(self) -> str:
+        return f"""MediaType(id={self.id!r}, name={self.name!r}, icon={self.icon!r})"""

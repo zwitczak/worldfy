@@ -3,16 +3,16 @@ import sys
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 from fastapi import FastAPI
-from app.routers import events, users
+from app.routers import events, users, places
 
 description = """
 
 ### Events
 
-* **Create event** (_not implemented_).
-* **Get event info** (_not implemented_).
+* **Create event**
+* **Get event info**
 * **Get event filtered** (_not implemented_).
-* **Get events types** (_not implemented_).
+* **Get events types** 
 * **Get events by localization** (_not implemented_).
 * **Get events by name** (_not implemented_).
 * **Edit event organizator info** (_not implemented_).
@@ -28,7 +28,8 @@ description = """
 * **Search user by name, return full** (_not implemented_).
 
 ### Places
-* **Search place by name** (_not implemented_).
+* **Search place by name**.
+* **Get place address by place id**.
 
 
 
@@ -43,6 +44,7 @@ app = FastAPI(
 
 app.include_router(events.router, tags=['events'])
 app.include_router(users.router, tags=['users'])
+app.include_router(places.router, tags=['places'])
 
 @app.get('/')
 async def hello_test():
