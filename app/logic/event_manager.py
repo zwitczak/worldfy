@@ -1,8 +1,9 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, List
-from ..models.event import EventPost, EventGet
+from ..models.event import EventPost, EventGet, EventBase
 from ..models.media import Media
+from ..models.photo import Photo
 from ..db_operations.event_crud import EventCRUD, SQLiteDatabase
 from .geocoding import Geocoder
 

@@ -6,7 +6,7 @@ from sqlalchemy.orm import DeclarativeBase, Session
 from sqlalchemy.ext.associationproxy import association_proxy
 import os     
 
-pth = "//home//worldfy//app//db_sqlite//test2.db"
+pth = "//home//worldfy//app//db_sqlite//test3.db"
 
 if os.path.exists(pth):
     os.rmdir(pth)
@@ -91,6 +91,7 @@ class EventDB(Base):
     photos =  relationship("PhotoEventBridgeDB" , back_populates="event")
     organizers: Mapped[List["UserDB"]] = relationship("UserDB", secondary="ORGANIZER", back_populates="organized_events")
     media = relationship("MediaDB", secondary ="MEDIA_EVENT_BR", back_populates="events_media")
+    interested_users = relationship("ParticipantDB", back_populates="events")
 
     def as_dict(self):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -260,6 +261,8 @@ class PrivateUserDB(UserDB):
 
     # relationships 
     # TODO partitipated_events
+    # relationships
+    saved_events = relationship("ParticipantDB", back_populates="users")
 
     def as_dict(self):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -360,7 +363,25 @@ class MediaTypesDB(Base):
     def __repr__(self) -> str:
         return f"""MediaType(id={self.id!r}, name={self.name!r}, icon={self.icon!r})"""
 
+class ParticipantDB(Base):
+    __tablename__ = "PARTICIPANT"
+    user_id: Mapped[int] = mapped_column(ForeignKey("PRIVATE_USER.id"), primary_key=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("EVENT.id"), primary_key=True)
+    # interested, goes, invited, maybe
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    visibile: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
+
+    # relationships
+    events = relationship("EventDB", back_populates="interested_users")
+    users = relationship("PrivateUserDB", back_populates="saved_events")
+    
+    def as_dict(self):
+       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+    
+    def __repr__(self) -> str:
+        return f"""Participant(user_id={self.user_id!r}, event_id={self.event_id!r}, role={self.role!r}, visibility={self.visibility!r})"""
+    
 Base.metadata.create_all(engine)
 
 
@@ -516,6 +537,12 @@ with Session(engine) as session:
     
     photoevent = PhotoEventBridgeDB(photo_id =photo1.id, event_id = event1.id, type='main')
 
+    participant1 = ParticipantDB(user_id=user2.id, event_id=event1.id, role='interested', visibile = True)
+    participant2 = ParticipantDB(user_id=user6.id, event_id=event1.id, role='going',  visibile = True)
+    participant3 = ParticipantDB(user_id=user6.id, event_id=event2.id, role='interested', visibile = True)
+    participant4 = ParticipantDB(user_id=user2.id, event_id=event2.id, role='going', visibile = False)
 
-    session.add_all([photoevent])
+
+
+    session.add_all([photoevent, participant1, participant2, participant3, participant4])
     session.commit()

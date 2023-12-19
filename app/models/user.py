@@ -5,8 +5,14 @@ from typing import Optional, List, Union
 from .media import Media, MediaType, MediaGet
 from .localization import AddressBase
 from .photo import Photo
+# from .event import EventReduced
 
 
+class ParticipantType(str, Enum):
+    INTERESTED = 'INTERESTED'
+    GOING = 'GOING'
+    MAYBE = 'MAYBE'
+    NOT_GOING = 'NOT_GOING'
 
 class UserBase(BaseModel):
     id: Optional[int]
@@ -16,6 +22,16 @@ class UserBase(BaseModel):
     type: Optional[str] = None
     media: Optional[List[MediaGet]] = []
     photos: Optional[List[Photo]] = []
+
+class SignUpData(BaseModel):
+    username: str
+    name: str
+    surname: str
+    email: str
+    birthday: str
+    password: str
+    type: str
+    visible: bool
 
 
 class UserCredentials(UserBase):
@@ -37,4 +53,3 @@ class Organization(UserBase):
     size: Optional[str] = None
     address: Optional[AddressBase]  = None
     
-

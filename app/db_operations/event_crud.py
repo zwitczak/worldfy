@@ -17,16 +17,23 @@ class EventCRUD:
         self._session = session
 
 
-    def delete_event(self, event_id, event_modify: EventBase):
+    def delete_event(self, event_id: int):
         try:
             self._session.delete(EventDB).where(EventDB.id == event_id)
             self._session.delete(OrganizerDB).where(OrganizerDB.event_id == event_id)
+            self._session.delete(EventTypeBridgeDB).where(EventTypeBridgeDB.event_id == event_id)
+            self._session.delete(PhotoEventBridgeDB).where(PhotoEventBridgeDB.event_id == event_id)
+
+            media_ids = self._session.query(MediaEventBridgeDB.media_id).where(MediaEventBridgeDB.event_id == event_id).all()
+            for media_id in media_ids:
+                self._session.delete(MediaDB).where(MediaDB.media_id == media_id)
+
             # self._session.delete(ParticipantDB).where(ParticipantDB.event_id == event_id)
 
             
             # session.query(stmt)
-            self._session.execute(stmt)
-            self._session.commit()
+            # self._session.execute(stmt)
+            # self._session.commit()
             
             return {"status":"success"}
             
@@ -391,14 +398,18 @@ class EventCRUD:
 
     def add_organizer(self, event_id: int, user_id: int):
         try:
-            organizer = OrganizerDB(user_id=user_id, 
-                                    event_id=event_id)
-            self._session.add(organizer)
-            self._session.commit()
-            result = {'status':'succedded'}
+            existing = self._session.query(OrganizerDB).where(OrganizerDB.event_id == event_id).where(OrganizerDB.user_id == user_id).first()
+            if existing:
+                result = {'status':'failed', 'details':'User is already set as organizer'}
+            else:
+                organizer = OrganizerDB(user_id=user_id, 
+                                        event_id=event_id)
+                self._session.add(organizer)
+                self._session.commit()
+                result = {'status':'succedded', 'details': 'User set as organizer of choosen event'}
         except Exception as e:
             print('Exception:', e)
-            result = {'status':'failed'}
+            result = {'status':'failed', 'details': e}
 
         return result
 

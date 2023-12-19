@@ -29,13 +29,10 @@ class EventPost(BaseModel):
     types: List[EventType]
     media: Optional[List[Media]] = None
     
-
 class EventGet(EventPost):
     id: int
     description: Optional[str]
     media: Optional[List[MediaGet]] = None
-
-
 
 class EventBase(BaseModel):
     name: str
@@ -52,6 +49,19 @@ class EventBase(BaseModel):
 class EventLocalization(BaseModel):
     place: Optional[Place] = None
     address: Optional[AddressBase] = None
+
+class EventReduced(BaseModel):
+    id: int
+    name: str
+    date_start: datetime
+    date_end: datetime
+    is_public: bool
+    description: str
+    is_outdoor: bool
+    participants_limit: Optional[str] =None
+    age_limit: Optional[str] = None
+    photo: Optional[Photo]  = None
+    type: List[EventType]
 
 
 
